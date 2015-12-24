@@ -194,13 +194,14 @@ public class SubrandPhotoCapture {
 	static final String PASS = "mjzc";
 
 	private static Integer insertPhoto(Connection conn, List<JSONObject> photoLst) throws JSONException, SQLException {
-		String insertSql = "INSERT INTO t_car_photo (subid, carid, photoid, title) VALUES (?, ?, ?, ?)";
+		String insertSql = "INSERT INTO t_car_photo (subid, carid, photoid, title, url) VALUES (?, ?, ?, ?, ?)";
 		PreparedStatement insPs = conn.prepareStatement(insertSql);
 		for (JSONObject photo : photoLst) {
 			insPs.setString(1, photo.getString("subid"));
 			insPs.setString(2, photo.getString("carid"));
 			insPs.setString(3, photo.getString("photoid"));
 			insPs.setString(4, photo.getString("title"));
+			insPs.setString(5, photo.getString("img_340"));
 			insPs.addBatch();
 		}
 
