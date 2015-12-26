@@ -2,6 +2,7 @@ package cn.colorforme.sina.capture;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.ConnectException;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -37,7 +38,7 @@ public class ColorPhotoCapture {
 		// subidArr = new String[] { "2014" };
 
 		CloseableHttpClient httpclient = HttpClients.createDefault();
-		List<JSONObject> allColorLst = new ArrayList<>();
+		List<JSONObject> allPhotoLst = new ArrayList<>();
 		int count = 0;
 		// for (String subid : subidArr) {
 		for (int i = 0; i < colorLst.size(); i++) {
@@ -45,11 +46,11 @@ public class ColorPhotoCapture {
 			String subid = colorMap.get("subid");
 			String colorid = colorMap.get("colorid");
 			List<JSONObject> photoLst = listPhoto(httpclient, subid, colorid);
-			allColorLst.addAll(photoLst);
+			allPhotoLst.addAll(photoLst);
 			System.out.println(count++ + "\t subid is : " + subid + "\t colorid is : " + colorid);
-			// break;
+			break;
 		}
-		int total = allColorLst.size();
+		int total = allPhotoLst.size();
 		System.out.println(total);
 
 		int phase = total / 3000;
@@ -62,7 +63,7 @@ public class ColorPhotoCapture {
 			if (end > total) {
 				end = total;
 			}
-			List<JSONObject> sublist = allColorLst.subList(start, end);
+			List<JSONObject> sublist = allPhotoLst.subList(start, end);
 			insertPhoto(conn, sublist);
 			System.out.println(sublist.size());
 		}
@@ -74,63 +75,68 @@ public class ColorPhotoCapture {
 		String requestUrl = "http://photo.auto.sina.com.cn/interface/v2/general/get_car_photo.php?pic_type=1&page=1&limit=10008&subid="
 				+ subid + "&o_color=" + colorid;
 		HttpPost httppost = new HttpPost(requestUrl);
-
-		CloseableHttpResponse response = httpclient.execute(httppost);
-		// Get hold of the response entity
-		HttpEntity entity = response.getEntity();
-
-		byte[] result = null;
-		// If the response does not enclose an entity, there is no need
-		// to bother about connection release
-		if (entity != null) {
-			InputStream instream = entity.getContent();
-			result = IOUtils.toByteArray(instream);
-			instream.close();
-		}
-		response.close();
-
-		String sResult = new String(result, "utf-8");
-		sResult = StringEscapeUtils.unescapeJava(sResult);
-		// System.out.println(sResult);
-		JSONObject json = null;
-		try {
-			json = new JSONObject(sResult);
-		} catch (Exception e) {
-			e.printStackTrace();
-			System.out.println(sResult);
-			String newResult = sResult.replace("\n", "");
-			System.out.println(newResult);
-			json = new JSONObject(newResult);
-			// Pattern pattern = Pattern.compile("\n");
-			// Matcher matcher = pattern.matcher(sResult);
-			// while (matcher.find()) {
-			// System.out.println(matcher.group(0));
-			// }
-			System.out.println(json);
-		}
 		List<JSONObject> photoLst = new ArrayList<>();
-		int code = json.getJSONObject("result").getJSONObject("status").getInt("code");
-		// if (!"0".equals(code)) {
-		if (code != 0) {
+		try {
+			CloseableHttpResponse response = httpclient.execute(httppost);
+			// Get hold of the response entity
+			HttpEntity entity = response.getEntity();
+
+			byte[] result = null;
+			// If the response does not enclose an entity, there is no need
+			// to bother about connection release
+			if (entity != null) {
+				InputStream instream = entity.getContent();
+				result = IOUtils.toByteArray(instream);
+				instream.close();
+			}
+			response.close();
+
+			String sResult = new String(result, "utf-8");
+			sResult = StringEscapeUtils.unescapeJava(sResult);
+			// System.out.println(sResult);
+			JSONObject json = null;
+			try {
+				json = new JSONObject(sResult);
+			} catch (Exception e) {
+				e.printStackTrace();
+				System.out.println(sResult);
+				String newResult = sResult.replace("\n", "");
+				System.out.println(newResult);
+				json = new JSONObject(newResult);
+				// Pattern pattern = Pattern.compile("\n");
+				// Matcher matcher = pattern.matcher(sResult);
+				// while (matcher.find()) {
+				// System.out.println(matcher.group(0));
+				// }
+				System.out.println(json);
+			}
+			int code = json.getJSONObject("result").getJSONObject("status").getInt("code");
+			// if (!"0".equals(code)) {
+			if (code != 0) {
+				return photoLst;
+			}
+			JSONArray photoArr = json.getJSONObject("result").getJSONObject("data").getJSONArray("type_data");
+			JSONArray imgLst = new JSONArray();
+			if (photoArr.length() > 0) {
+				imgLst = photoArr.getJSONObject(0).getJSONArray("img_list");
+			}
+			for (int i = 0; i < imgLst.length(); i++) {
+				JSONObject imgJson = imgLst.getJSONObject(i);
+				imgJson.put("subid", subid);
+				imgJson.put("colorid", colorid);
+				photoLst.add(imgJson);
+			}
 			return photoLst;
-		}
-		JSONArray photoArr = json.getJSONObject("result").getJSONObject("data").getJSONArray("type_data");
-		JSONArray imgLst = new JSONArray();
-		if (photoArr.length() > 0) {
-			imgLst = photoArr.getJSONObject(0).getJSONArray("img_list");
-		}
-		for (int i = 0; i < imgLst.length(); i++) {
-			JSONObject imgJson = imgLst.getJSONObject(i);
-			imgJson.put("subid", subid);
-			imgJson.put("colorid", colorid);
-			photoLst.add(imgJson);
+		} catch (ConnectException ex) {
+			ex.printStackTrace();
 		}
 		return photoLst;
 	}
 
 	// JDBC driver name and database URL
 	static final String JDBC_DRIVER = "com.mysql.jdbc.Driver";
-	static final String DB_URL = "jdbc:mysql://192.168.1.9:3306/autocolor";
+	// static final String DB_URL = "jdbc:mysql://192.168.1.9:3306/autocolor";
+	static final String DB_URL = "jdbc:mysql://www.colorforme.cn:3306/test";
 
 	// Database credentials
 	static final String USER = "mjzc";
